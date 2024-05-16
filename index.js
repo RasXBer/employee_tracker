@@ -7,7 +7,7 @@ const pool = new Pool({
   host: 'localhost',
   database: 'cms_db',
   password: '1234',
-  port: 5432, 
+  port: 5432,
 });
 
 // Function to start the application
@@ -22,7 +22,7 @@ async function startApp() {
 async function viewDepartments() {
   try {
     // Query to retrieve all departments
-    const query = 'SELECT * FROM departments';
+    const query = 'SELECT * FROM departments order by id';
 
     const result = await pool.query(query);
 
@@ -38,7 +38,7 @@ async function viewDepartments() {
 async function viewRoles() {
   try {
     // Query to retrieve all roles
-    const query = 'SELECT * FROM roles';
+    const query = 'SELECT * FROM roles order by id'  ;
 
     const result = await pool.query(query);
 
@@ -54,7 +54,26 @@ async function viewRoles() {
 async function viewEmployees() {
   try {
     // Query to retrieve all employees
-    const query = 'SELECT * FROM employees';
+    // const query = 'SELECT * FROM employees';
+
+    const query = `
+    SELECT 
+          e.id,
+          e.first_name,
+          e.last_name,
+          r.title,
+          d.name AS department,
+          r.salary,
+          CONCAT(m.first_name, ' ', m.last_name) AS manager
+        FROM 
+          employees e
+        INNER JOIN 
+          roles r ON e.role_id = r.id
+        INNER JOIN 
+          departments d ON r.department_id = d.id
+        LEFT JOIN 
+          employees m ON e.manager_id = m.id
+        order by e.id`;
 
     const result = await pool.query(query);
 
@@ -124,7 +143,7 @@ async function addRole() {
 
 // Function to add an employee
 async function addEmployee() {
-   try {
+  try {
     // Prompt the user to enter the details of the new employee
     const { first_name, last_name, role_id, manager_id } = await inquirer.prompt([
       {
@@ -163,7 +182,42 @@ async function addEmployee() {
 
 // Function to update an employee's role
 async function updateEmployeeRole() {
+  try {
+    // Prompt the user to select an employee to update
+    const employees = await pool.query('SELECT * FROM employees');
+    const employeeChoices = employees.rows.map(employee => ({
+      name: `${employee.first_name} ${employee.last_name}`,
+      value: employee.id,
+    }));
 
+    const { employeeId } = await inquirer.prompt({
+      type: 'list',
+      name: 'employeeId',
+      message: 'Select an employee to update:',
+      choices: employeeChoices,
+    });
+
+    // Prompt the user to select a new role for the employee
+    const roles = await pool.query('SELECT * FROM roles');
+    const roleChoices = roles.rows.map(role => ({
+      name: role.title,
+      value: role.id,
+    }));
+
+    const { roleId } = await inquirer.prompt({
+      type: 'list',
+      name: 'roleId',
+      message: 'Select a new role for the employee:',
+      choices: roleChoices,
+    });
+
+    // Update the employee's role in the database
+    await pool.query('UPDATE employees SET role_id = $1 WHERE id = $2', [roleId, employeeId]);
+
+    console.log('Employee role updated successfully.');
+  } catch (error) {
+    console.error('Error updating employee role:', error);
+  }
 }
 
 // Function to handle user input
